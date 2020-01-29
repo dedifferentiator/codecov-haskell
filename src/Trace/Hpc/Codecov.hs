@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
-
 -- |
 -- Module:      Trace.Hpc.Codecov
--- Copyright:   (c) 2014 Guillaume Nargeot
+-- Copyright:   (c) 2020 8c6794b6
+--              (c) 2014 Guillaume Nargeot
 -- License:     BSD3
 -- Maintainer:  Guillaume Nargeot <guillaume+hackage@nargeot.com>
 -- Stability:   experimental
@@ -11,16 +11,23 @@
 
 module Trace.Hpc.Codecov ( generateCodecovFromTix ) where
 
-import           Data.Aeson
-import           Data.Aeson.Types ()
-import           Data.Function
-import           Data.List
-import qualified Data.Map.Strict as M
-import           System.Exit (exitFailure)
+-- base
+import           Data.Function            (on)
+import           Data.List                (foldl', groupBy, zip4)
+import           System.Exit              (exitFailure)
+
+-- aeson
+import           Data.Aeson               (Value (..), object, (.=))
+
+-- containers
+import qualified Data.Map.Strict          as M
+
+-- filepath
+import           System.FilePath          ((</>))
+
+-- Internal
 import           Trace.Hpc.Codecov.Config
 import           Trace.Hpc.Codecov.Lix
-import           Trace.Hpc.Codecov.Paths
-import           Trace.Hpc.Codecov.Types
 import           Trace.Hpc.Codecov.Util
 import           Trace.Hpc.Mix
 import           Trace.Hpc.Tix
@@ -34,7 +41,8 @@ type ModuleCoverageData = (
 type TestSuiteCoverageData = M.Map FilePath ModuleCoverageData
 
 -- single file coverage data in the format defined by codecov.io
-type SimpleCoverage = [CoverageValue]
+-- type SimpleCoverage = [CoverageValue]
+type SimpleCoverage = M.Map Int CoverageValue
 
 -- Is there a way to restrict this to only Number and Null?
 type CoverageValue = Value
@@ -42,14 +50,21 @@ type CoverageValue = Value
 type LixConverter = Lix -> SimpleCoverage
 
 defaultConverter :: LixConverter
-defaultConverter = map $ \lix -> case lix of
-    Full       -> Number 1
-    Partial    -> Bool True
-    None       -> Number 0
-    Irrelevant -> Null
+defaultConverter = M.fromList . snd . foldl' f (1, [])
+  where
+    f :: (Int, [(Int,Value)]) -> Hit -> (Int, [(Int, Value)])
+    f (line_count, acc) hit =
+      -- XXX: Partial hit is always showing "1/2".
+      let line_count' = line_count + 1
+      in  case hit of
+            Full       -> (line_count', (line_count, Number 1) : acc)
+            Partial    -> (line_count', (line_count, String "1/2") : acc)
+            None       -> (line_count', (line_count, Number 0) : acc)
+            Irrelevant -> (line_count', acc)
 
 toSimpleCoverage :: LixConverter -> Int -> [CoverageEntry] -> SimpleCoverage
-toSimpleCoverage convert lineCount = (:) Null . convert . toLix lineCount
+-- toSimpleCoverage convert lineCount = (:) Null . convert . toLix lineCount
+toSimpleCoverage convert lineCount = convert . toLix lineCount
 
 getExprSource :: [String] -> MixEntry -> [String]
 getExprSource source (hpcPos, _) = subSubSeq startCol endCol subLines
@@ -61,7 +76,7 @@ getExprSource source (hpcPos, _) = subSubSeq startCol endCol subLines
 groupMixEntryTixs :: [(MixEntry, Integer, [String])] -> [CoverageEntry]
 groupMixEntryTixs = map mergeOnLst3 . groupBy ((==) `on` fst . fst3)
     where mergeOnLst3 xxs@(x : _) = (map fst3 xxs, map snd3 xxs, trd3 x)
-          mergeOnLst3 [] = error "mergeOnLst3 appliedTo empty list"
+          mergeOnLst3 []          = error "mergeOnLst3 appliedTo empty list"
 
 -- TODO possible renaming to "getModuleCoverage"
 coverageToJson :: LixConverter -> ModuleCoverageData -> SimpleCoverage
@@ -86,24 +101,46 @@ mergeCoverageData :: [TestSuiteCoverageData] -> TestSuiteCoverageData
 mergeCoverageData = foldr1 (M.unionWith mergeModuleCoverageData)
 
 readMix' :: Config -> String -> TixModule -> IO Mix
-readMix' config name tix = readMix (getMixPaths config name tix) $ Right tix
+-- readMix' config name tix = readMix (getMixPaths config name tix) $ Right tix
+readMix' config _name tix = readMix (mixDirs config) (Right tix)
+
+-- | Read given file under 'srcDirs' of 'Config'.
+readFileWithConfig :: Config -> FilePath -> IO String
+readFileWithConfig config path = go [] (srcDirs config)
+  where
+    go acc (dir:dirs) =
+      let path' = dir </> path
+      in  readFile path' `catchIO` const (go (path' : acc) dirs)
+    go acc []         =
+      do putStrLn ("Couldn't find file " ++ path ++ ", searched for:")
+         putStr (unlines (map ("  - " ++) acc))
+         exitFailure
 
 -- | Create a list of coverage data from the tix input
-readCoverageData :: Config                   -- ^ codecov-haskell configuration 
+readCoverageData :: Config                   -- ^ codecov-haskell
+                                             -- configuration
                  -> String                   -- ^ test suite name
                  -> [String]                 -- ^ excluded source folders
                  -> IO TestSuiteCoverageData -- ^ coverage data list
 readCoverageData config testSuiteName excludeDirPatterns = do
-    tixPath <- getTixPath config testSuiteName
+    -- let tixPath = getTixPath config testSuiteName
+    let tixPath = tixDir config
     mtix <- readTix tixPath
     case mtix of
-        Nothing -> error ("Couldn't find the file " ++ tixPath) >> exitFailure
+        Nothing
+          | null tixPath -> do putStrLn ("No tix file specified.")
+                               exitFailure
+          | otherwise  -> do putStrLn ("Couldn't find the tix file \"" ++
+                                       tixPath ++ "\"")
+                             exitFailure
         Just (Tix tixs) -> do
             mixs <- mapM (readMix' config testSuiteName) tixs
             let files = map filePath mixs
-            sources <- mapM readFile files
-            let coverageDataList = zip4 files sources mixs (map tixModuleTixs tixs)
-            let filteredCoverageDataList = filter sourceDirFilter coverageDataList
+            sources <- mapM (readFileWithConfig config) files
+            let coverageDataList =
+                  zip4 files sources mixs (map tixModuleTixs tixs)
+            let filteredCoverageDataList =
+                  filter sourceDirFilter coverageDataList
             return $ M.fromList $ map toFirstAndRest filteredCoverageDataList
             where filePath (Mix fp _ _ _ _) = fp
                   sourceDirFilter = not . matchAny excludeDirPatterns . fst4
@@ -112,7 +149,9 @@ readCoverageData config testSuiteName excludeDirPatterns = do
 generateCodecovFromTix :: Config   -- ^ codecov-haskell configuration
                        -> IO Value -- ^ code coverage result in json format
 generateCodecovFromTix config = do
-    testSuitesCoverages <- mapM (flip (readCoverageData config) excludedDirPatterns) testSuiteNames
+    testSuitesCoverages <- mapM (flip (readCoverageData config)
+                                      excludedDirPatterns)
+                                testSuiteNames
     return $ toCodecovJson converter $ mergeCoverageData testSuitesCoverages
     where excludedDirPatterns = excludedDirs config
           testSuiteNames = testSuites config

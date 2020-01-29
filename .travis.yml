@@ -1,46 +1,151 @@
-env:
-  - GHCVER=7.6.3
-  - GHCVER=7.8.3
+language: c
+
+os: linux
+
+git:
+  depth: 3
+
+cache:
+  directories:
+    - $HOME/.stack
+    - $HOME/.cabal/packages
+    - $HOME/.cabal/store
+
+jobs:
+  include:
+    - env: EXEC="stack" RESOLVER="lts-14"
+    - env: EXEC="cabal" GHCVER="8.8.2"
+      addons:
+        apt:
+          packages:
+            - cabal-install-3.0
+            - ghc-8.8.2
+          sources:
+            - hvr-ghc
 
 before_install:
-  - travis_retry sudo add-apt-repository -y ppa:hvr/ghc
-  - travis_retry sudo apt-get update
-  - travis_retry sudo apt-get install cabal-install-1.20 ghc-$GHCVER happy
-  - export PATH=/opt/ghc/$GHCVER/bin:$PATH
+  - mkdir -p ~/.local/bin
+  - export PATH="$HOME/.local/bin:$PATH"
+  - |
+     case "$EXEC" in
+       stack)
+         travis_retry curl \
+           -L https://get.haskellstack.org/stable/linux-x86_64.tar.gz | \
+           tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+       ;;
+       cabal)
+         export PATH=/opt/ghc/bin:$PATH
+       ;;
+     esac
 
 install:
-  - cabal-1.20 update
-  - travis_retry sudo apt-get -q -y install hlint || cabal-1.20 install hlint
-  - cabal-1.20 install --only-dependencies --enable-tests --enable-benchmarks
+  - |
+    case "$EXEC" in
+      stack)
+        export STACK="stack --resolver=$RESOLVER"
+        $STACK --version
+        $STACK test --no-terminal --install-ghc --only-dependencies
+        ;;
+      cabal)
+        which cabal
+        which ghc
+        cabal --version
+        ghc --version
+        travis_retry cabal v2-update
+        ;;
+    esac
 
 script:
-  - hlint . --ignore="Parse error"
-  - cabal-1.20 configure --enable-tests --enable-benchmarks --enable-library-coverage -v2
-  - cabal-1.20 build
   - |
-    if [ $GHCVER = "7.8.3" ]; then
-      cabal-1.20 test --show-details=always
-    else
-      dist/build/run-cabal-test/run-cabal-test --cabal-name=cabal-1.20 --show-details=always
-    fi
-  - cabal-1.20 check
-  - cabal-1.20 sdist
-  - export SRC_TGZ=$(cabal-1.20 info . | awk '{print $2 ".tar.gz";exit}') ;
-    (cd dist/;
-    if [ -f "$SRC_TGZ" ]; then
-      cabal-1.20 install "$SRC_TGZ";
-    else
-      echo "expected '$SRC_TGZ' not found";
-      exit 1;
-    fi)
+    case "$EXEC" in
+      stack)
+        echo stack=$STACK
+        $STACK --no-terminal build --fast --test --coverage
+        ;;
+      cabal)
+        cabal v2-configure --enable-tests --enable-coverage
+        cabal v2-build
+        cabal v2-test
+        ;;
+    esac
 
 after_script:
-  - dist/build/codecov-haskell/codecov-haskell test-all --exclude-dir=test --display-report --print-response
+  - |
+    case "$EXEC" in
+      stack)
+        echo stack=$STACK
+        HPC_ROOT=$($STACK path --local-hpc-root)
+        DIST_DIR=$($STACK path --dist-dir)
+        TIX=$HPC_ROOT/codecov-haskell/test-all/test-all.tix
+        MIX_DIR=$DIST_DIR/hpc
+        echo TIX=$TIX
+        echo MIX_DIR=$MIX_DIR
+        $STACK exec -- codecov-haskell \
+          --tix=$TIX \
+          --mix-dir=$MIX_DIR \
+          --display-report \
+          test-all
+        ;;
+      cabal)
+        GHCVER_DIR=dist-newstyle/build/x86_64-linux/ghc-$GHCVER/
+        CCV_HS_VER=$(cabal v2-exec -- codecov-haskell --numeric-version)
+        CCV_HS=codecov-haskell-$CCV_HS_VER
+        VANILLA=$GHCVER_DIR/$CCV_HS/hpc/vanilla
+        TIX=$VANILLA/tix/$CCV_HS/$CCV_HS.tix
+        MIX_DIR=$VANILLA/mix/$CCV_HS
+        echo TIX=$TIX
+        echo MIX_DIR=$MIX_DIR
+        cabal v2-exec -- codecov-haskell \
+          --tix=$TIX \
+          --mix-dir=$MIX_DIR \
+          --display-report \
+          test-all
+    esac
 
-notifications:
-  webhooks:
-  urls:
-    - https://webhooks.gitter.im/e/3ff64a7879ffa1a444b6
-  on_success: change
-  on_failure: always
-  on_start: false
+# env:
+#   - GHCVER=7.6.3
+#   - GHCVER=7.8.3
+
+# before_install:
+#   - travis_retry sudo add-apt-repository -y ppa:hvr/ghc
+#   - travis_retry sudo apt-get update
+#   - travis_retry sudo apt-get install cabal-install-1.20 ghc-$GHCVER happy
+#   - export PATH=/opt/ghc/$GHCVER/bin:$PATH
+
+# install:
+#   - cabal-1.20 update
+#   - travis_retry sudo apt-get -q -y install hlint || cabal-1.20 install hlint
+#   - cabal-1.20 install --only-dependencies --enable-tests --enable-benchmarks
+
+# script:
+#   - hlint . --ignore="Parse error"
+#   - cabal-1.20 configure --enable-tests --enable-benchmarks --enable-library-coverage -v2
+#   - cabal-1.20 build
+#   - |
+#     if [ $GHCVER = "7.8.3" ]; then
+#       cabal-1.20 test --show-details=always
+#     else
+#       dist/build/run-cabal-test/run-cabal-test --cabal-name=cabal-1.20 --show-details=always
+#     fi
+#   - cabal-1.20 check
+#   - cabal-1.20 sdist
+#   - export SRC_TGZ=$(cabal-1.20 info . | awk '{print $2 ".tar.gz";exit}') ;
+#     (cd dist/;
+#     if [ -f "$SRC_TGZ" ]; then
+#       cabal-1.20 install "$SRC_TGZ";
+#     else
+#       echo "expected '$SRC_TGZ' not found";
+#       exit 1;
+#     fi)
+
+# after_script:
+#   - dist/build/codecov-haskell/codecov-haskell test-all
+# --exclude-dir=test --display-report --print-response
+
+# notifications:
+#   webhooks:
+#   urls:
+#     - https://webhooks.gitter.im/e/3ff64a7879ffa1a444b6
+#   on_success: change
+#   on_failure: always
+#   on_start: false

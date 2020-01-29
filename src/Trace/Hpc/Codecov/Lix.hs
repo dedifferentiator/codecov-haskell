@@ -1,6 +1,7 @@
 -- |
 -- Module:      Trace.Hpc.Codecov.Lix
--- Copyright:   (c) 2014 Guillaume Nargeot
+-- Copyright:   (c) 2020 8c6794b6
+--              (c) 2014 Guillaume Nargeot
 -- License:     BSD3
 -- Maintainer:  Guillaume Nargeot <guillaume+hackage@nargeot.com>
 -- Stability:   experimental
@@ -10,13 +11,30 @@
 
 module Trace.Hpc.Codecov.Lix where
 
-import Data.List
-import Data.Ord
-import Prelude hiding (getLine)
-import Trace.Hpc.Codecov.Types
+-- base
+import Data.List              (sortBy)
+import Data.Ord               (comparing)
+import Prelude                hiding (getLine)
+
+-- hpc
+import Trace.Hpc.Mix          (BoxLabel (..), CondBox (..), MixEntry)
+import Trace.Hpc.Util         (fromHpcPos)
+
+-- Internal
 import Trace.Hpc.Codecov.Util
-import Trace.Hpc.Mix
-import Trace.Hpc.Util
+
+type CoverageEntry = (
+    [MixEntry], -- mix entries
+    [Integer],  -- tix values
+    [String])   -- entry source code
+
+data Hit = Full
+         | Partial
+         | None
+         | Irrelevant
+    deriving (Eq, Show)
+
+type Lix = [Hit]
 
 toHit :: [Bool] -> Hit
 toHit []  = Irrelevant
