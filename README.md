@@ -3,7 +3,7 @@ codecov-haskell
 
 [![Build
 Status](http://img.shields.io/travis/8c6794b6/codecov-haskell/master.svg?logo=travis)](https://travis-ci.org/8c6794b6/codecov-haskell)
-![CircleCI](https://img.shields.io/circleci/build/gh/8c6794b6/codecov-haskell/master?logo=circleci)
+[![CircleCI](https://img.shields.io/circleci/build/gh/8c6794b6/codecov-haskell/master?logo=circleci)](https://circleci.com/gh/8c6794b6/codecov-haskell)
 [![codecov](https://codecov.io/gh/8c6794b6/codecov-haskell/branch/master/graph/badge.svg)](https://codecov.io/gh/8c6794b6/codecov-haskell)
 [![BSD3
 License](http://img.shields.io/badge/license-BSD3-brightgreen.svg)](https://tldrlegal.com/license/bsd-3-clause-license-%28revised%29)
