@@ -1,0 +1,52 @@
+# Circle CI configuration, from:
+#
+#  https://github.com/CircleCI-Public/circleci-demo-haskell/blob/master/.circleci/config.yml
+
+version: 2.1
+
+jobs:
+  build:
+    docker:
+      - image: fpco/stack-build:lts
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore cached dependencies
+          keys:
+            - codecov-haskell-{{ checksum "codecov-haskell.cabal" }}
+      - run:
+          name: Resolve/update dependencies
+          command: stack setup
+      - run:
+          name: Show version information
+          command: |
+            which stack
+            stack --version
+            stack exec -- which ghc
+            stack exec -- ghc --version
+      - run:
+          name: Run tests
+          command: stack build --no-terminal --fast --test --coverage
+      - run:
+          name: Upload coverage
+          command: |
+            HPC_ROOT=$(stack path --local-hpc-root)
+            DIST_DIR=$(stack path --dist-dir)
+            TIX=$HPC_ROOT/codecov-haskell/test-all/test-all.tix
+            MIX_DIR=$DIST_DIR/hpc
+            echo TIX=$TIX
+            echo MIX_DIR=$MIX_DIR
+            stack exec -- codecov-haskell --tix=$TIX \
+              --mix-dir=$MIX_DIR --display-report test-all
+      - run:
+          name: Install executable
+          command: stack build --no-terminal --copy-bins
+      - save_cache:
+          name: Cache Dependencies
+          key: codecov-haskell-{{ checksum "codecov-haskell.cabal" }}
+          paths:
+            - ".stack-work"
+            - "/root/.stack"
+      - store_artifacts:
+          path: ~/.local/bin/codecov-haskell
+          destination: codecov-haskell
