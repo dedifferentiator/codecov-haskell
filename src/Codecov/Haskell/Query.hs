@@ -15,6 +15,7 @@ module Codecov.Haskell.Query
   , Travis(..)
   , CircleCI(..)
   , Jenkins(..)
+  , GithubCI(..)
   ) where
 
 -- base
@@ -23,10 +24,12 @@ import Data.List          (intersperse)
 import System.Environment (getEnv, lookupEnv)
 
 -- filepath
-import System.FilePath    (dropExtension, (</>))
+-- filepath
+import System.FilePath    (dropExtension, (</>), takeFileName)
 
 -- network-uri
 import Network.URI        (escapeURIString, isUnescapedInURIComponent)
+import Data.Functor ((<&>))
 
 class QueryParam q where
   qp_service   :: q -> String
@@ -91,6 +94,17 @@ data Jenkins = Jenkins
 
 instance QueryParam Jenkins where
   qp_service = const "jenkins"
+
+data GithubCI = GithubCI
+
+instance QueryParam GithubCI where
+  qp_service _ = "githubci"
+  qp_branch  _ = getEnv "GITHUB_REF" <&> takeFileName -- /refs/head/ci
+  qp_build   _ = getEnv "GITHUB_RUN_NUMBER"
+  qp_commit  _ = getEnv "GITHUB_SHA"
+  qp_job     _ = getEnv "GITHUB_RUN_ID"
+  qp_slug    _ = getEnv "GITHUB_REPOSITORY"
+  qp_env     _ = getEnv "RUNNER_OS"
 
 -- | Compose URL parameters.
 --

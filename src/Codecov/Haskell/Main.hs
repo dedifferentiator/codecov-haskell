@@ -48,11 +48,12 @@ getUrlApiV2 :: IO String
 getUrlApiV2 =
   do env <- getEnvironment
      let make_params
-           | has "TRAVIS"       = composeParam Travis
-           | has "CIRCLECI"     = composeParam CircleCI
-           | has "JENKINS_HOME" = composeParam Jenkins
-           | otherwise          = error "Unsupported CI service."
-           where has key = isJust (lookup key env)
+           | has "TRAVIS"         = composeParam Travis
+           | has "CIRCLECI"       = composeParam CircleCI
+           | has "JENKINS_HOME"   = composeParam Jenkins
+           | has "GITHUB_ACTIONS" = composeParam GithubCI
+           | otherwise            = error "Unsupported CI service."
+           where has key = isJust $ lookup key env
      params <- make_params
      return $ baseUrlApiV2 ++ '?':params
 
