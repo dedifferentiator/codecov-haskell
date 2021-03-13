@@ -11,75 +11,28 @@
 -- Functions for sending coverage report files over http.
 
 module Trace.Hpc.Codecov.Curl
-   ( postJson
-   , sendJson
-   , readCoverageResult
+   ( sendJson
    , PostResult (..)
    ) where
 
--- base
 import           Control.Monad
-import           Data.Maybe                 (fromJust, isNothing)
-
--- aeson
-import           Data.Aeson.Types           (parseMaybe)
-
--- bytestring
 import qualified Data.ByteString.Lazy.Char8 as LBS
 
--- curl
-import           Network.Curl               (CurlCode (..),
-                                             CurlOption (..), CurlResponse,
-                                             CurlResponse_ (..), URLString,
-                                             curlGetString, initialize,
-                                             perform_with_response_,
-                                             setopts)
 
--- retry
-import           Control.Retry
 import Network.HTTP.Client
-import Data.Aeson
 import Network.HTTP.Client.TLS
 
 
 -- | Result to the POST request to codecov.io
 data PostResult =
-    PostSuccess URLString URLString -- ^ Codecov job url and wait url
+    PostSuccess String String -- ^ Codecov job url and wait url
   | PostFailure String              -- ^ error message
 
-parseResponse :: CurlResponse -> PostResult
-parseResponse r =
-  case respCurlCode r of
-    CurlOK -> PostSuccess (getField "url") (getField "wait_url")
-    _      -> PostFailure $ getField "message"
-  where getField fieldName = fromJust $ mGetField fieldName
-        mGetField fieldName = do
-            result <- decode $ LBS.pack (respBody r)
-            parseMaybe (.: fieldName) result
-
--- | Send json coverage report over HTTP using POST request
-postJson :: String        -- ^ json coverage report
-         -> URLString     -- ^ target url
-         -> Bool          -- ^ print response body if true
-         -> IO PostResult -- ^ POST request result
-postJson jsonCoverage url printResponse = do
-  h <- initialize
-
-  setopts h [ CurlPost True
-            , CurlVerbose True
-            , CurlURL url
-            , CurlHttpHeaders
-                ["Content-Type: application/x-www-form-urlencoded"]
-            , CurlPostFields [jsonCoverage]
-            ]
-  r <- perform_with_response_ h
-  when printResponse $ putStrLn $ respBody r
-  return $ parseResponse r
 
 
 -- | Send json coverage report over HTTP using POST request
 sendJson :: LBS.ByteString -- ^ json coverage report
-         -> URLString     -- ^ target url
+         -> String -- ^ target url
          -> Bool          -- ^ print response body if true
          -> IO (Response LBS.ByteString) -- ^ POST request result
 sendJson jsonCoverage url printResponse = do
@@ -92,38 +45,3 @@ sendJson jsonCoverage url printResponse = do
   res <- httpLbs request manager
   when printResponse $ print res
   return res
-
--- | Exponential retry policy of 10 seconds initial delay, up to 5 times
-expRetryPolicy :: RetryPolicy
-expRetryPolicy = exponentialBackoff (10 * 1000 * 1000) <> limitRetries 3
-
-performWithRetry :: IO (Maybe a) -> IO (Maybe a)
-performWithRetry action = retrying expRetryPolicy isNothingM action'
-    where isNothingM _ = return . isNothing
-          action' _  = action
-
-extractCoverage :: String -> Maybe String
-extractCoverage rBody = (++ "%") . show <$> (getField "coverage" :: Maybe Integer)
-    where
-      getField fieldName = do
-         result <- decode $ LBS.pack rBody
-         parseMaybe (.: fieldName) result
-
--- | Read the coveraege result page from coveralls.io
-readCoverageResult :: URLString         -- ^ target url
-                   -> Bool              -- ^ print json response if true
-                   -> IO (Maybe String) -- ^ coverage result
-readCoverageResult url printResponse =
-    performWithRetry readAction
-    where
-        readAction = do
-           response <- curlGetString url curlOptions
-           when printResponse $ putStrLn $ snd response
-           return $ case response of
-               (CurlOK, body) -> extractCoverage body
-               _              -> Nothing
-        curlOptions = [
-            CurlTimeout 60,
-            CurlConnectTimeout 60,
-            CurlVerbose True,
-            CurlFollowLocation True]

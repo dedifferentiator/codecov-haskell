@@ -9,11 +9,9 @@
 
 module Codecov.Haskell.Main
     ( defaultMain
-    , printCoverage
     ) where
 
 -- base
-import           Control.Concurrent         (threadDelay)
 import           Control.Monad              (unless, when)
 import           Data.Maybe                 hiding (listToMaybe)
 import           System.Environment         (getEnvironment)
@@ -88,17 +86,6 @@ getConfig cha =
                    , Config.srcDirs      = srcDirs cha
                    }
 
-printCoverage :: CodecovHaskellArgs -> String -> IO ()
-printCoverage cha url =
-  do let responseUrl = getUrlWithToken url "token" (token cha)
-     putStrLn ("URL: " ++ responseUrl)
-     -- wait 10 seconds until the page is available
-     threadDelay (10 * 1000000)
-     coverageResult <- readCoverageResult responseUrl (printResponse cha)
-     case coverageResult of
-         Just totalCoverage -> putStrLn ("Coverage: " ++ totalCoverage)
-         Nothing            -> putStrLn "Failed to read total coverage"
-
 defaultMain :: IO ()
 defaultMain = do
     cha <- cmdArgs codecovHaskellArgs
@@ -118,10 +105,3 @@ defaultMain = do
                           fullUrl (printResponse cha)
 
                 print $ responseBody resp
-                -- case response of
-                --     PostSuccess _url _ ->
-                --       -- XXX: Printing coverage response disabled.
-                --       -- printCoverage cha url
-                --       putStrLn "Successfully posted coverage report"
-                --     PostFailure msg ->
-                --       putStrLn ("Error: " ++ msg) >> exitFailure
