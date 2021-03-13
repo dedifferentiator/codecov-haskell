@@ -42,6 +42,9 @@ sendJson jsonCoverage url printResponse = do
   let request = initialRequest { method = "POST"
                                , requestBody = RequestBodyLBS jsonCoverage }
 
+  putStrLn $ "Request:\n" <> show request
+
   res <- httpLbs request manager
-  when printResponse $ print res
+  when printResponse $ putStrLn $ "Response:\n" <> show res
+
   return res
