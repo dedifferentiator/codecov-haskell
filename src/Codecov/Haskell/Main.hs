@@ -25,9 +25,6 @@ import           Data.Aeson                 (encode)
 -- cmdargs
 import           System.Console.CmdArgs     (cmdArgs)
 
--- curl
-import           Network.Curl               (URLString)
-
 -- bytestring
 import qualified Data.ByteString.Lazy.Char8 as BSL
 
@@ -40,6 +37,7 @@ import           Trace.Hpc.Codecov.Util
 
 import           Codecov.Haskell.CmdLine
 import           Codecov.Haskell.Query
+import Network.HTTP.Client (responseBody)
 
 baseUrlApiV2 :: String
 baseUrlApiV2 = "https://codecov.io/upload/v2"
@@ -90,7 +88,7 @@ getConfig cha =
                    , Config.srcDirs      = srcDirs cha
                    }
 
-printCoverage :: CodecovHaskellArgs -> URLString -> IO ()
+printCoverage :: CodecovHaskellArgs -> String -> IO ()
 printCoverage cha url =
   do let responseUrl = getUrlWithToken url "token" (token cha)
      putStrLn ("URL: " ++ responseUrl)
@@ -118,7 +116,8 @@ defaultMain = do
                 --                      fullUrl (printResponse cha)
                 resp <- sendJson (encode codecovJson)
                           fullUrl (printResponse cha)
-                print resp
+
+                print $ responseBody resp
                 -- case response of
                 --     PostSuccess _url _ ->
                 --       -- XXX: Printing coverage response disabled.
