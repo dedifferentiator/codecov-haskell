@@ -54,6 +54,8 @@ class QueryParam q where
   qp_env       = const (return "")
   qp_tag       :: q -> IO String
   qp_tag       = const (return "")
+  qp_token     :: q -> IO String
+  qp_token     = const (return "")
   qp_pr        :: q -> IO String
   qp_pr        = const (return "")
 
@@ -99,6 +101,7 @@ data GithubCI = GithubCI
 
 instance QueryParam GithubCI where
   qp_service _ = "custom"
+  qp_token   _ = getEnv "CODECOV_TOKEN"
   qp_branch  _ = getEnv "GITHUB_REF" <&> takeFileName -- /refs/head/ci
   qp_build   _ = getEnv "GITHUB_RUN_NUMBER"
   qp_commit  _ = getEnv "GITHUB_SHA"
@@ -128,6 +131,7 @@ composeParam ci =
                ,("name"     , qp_name     , urlencode)
                ,("job"      , qp_job      , id)
                ,("slug"     , qp_slug     , urlencode)
+               ,("token"    , qp_token    , id)
                ,("env"      , qp_env      , id)
                ,("tag"      , qp_tag      , id)
                ,("pr"       , qp_pr       , drop_head_sharps)
