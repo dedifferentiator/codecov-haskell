@@ -98,7 +98,7 @@ instance QueryParam Jenkins where
 data GithubCI = GithubCI
 
 instance QueryParam GithubCI where
-  qp_service _ = "githubci"
+  qp_service _ = "custom"
   qp_branch  _ = getEnv "GITHUB_REF" <&> takeFileName -- /refs/head/ci
   qp_build   _ = getEnv "GITHUB_RUN_NUMBER"
   qp_commit  _ = getEnv "GITHUB_SHA"
@@ -120,18 +120,19 @@ composeParam ci =
          get_val acc (key,g,format) = do
            val <- g ci
            return ((key ++ '=':format val) : acc)
-         kvs = [("branch", qp_branch, id)
-               ,("build", qp_build, id)
-               ,("build_url", qp_build_url,  id)
-               ,("commit", qp_commit, id)
-               ,("flags", qp_flags, id)
-               ,("name", qp_name, urlencode)
-               ,("job", qp_job, id)
-               ,("slug", qp_slug, urlencode)
-               ,("env", qp_env, id)
-               ,("tag", qp_tag, id)
-               ,("pr", qp_pr, drop_head_sharps)]
-         z = [("service" ++ '=':qp_service ci)]
+         kvs = [("branch"   , qp_branch   , id)
+               ,("build"    , qp_build    , id)
+               ,("build_url", qp_build_url, id)
+               ,("commit"   , qp_commit   , id)
+               ,("flags"    , qp_flags    , id)
+               ,("name"     , qp_name     , urlencode)
+               ,("job"      , qp_job      , id)
+               ,("slug"     , qp_slug     , urlencode)
+               ,("env"      , qp_env      , id)
+               ,("tag"      , qp_tag      , id)
+               ,("pr"       , qp_pr       , drop_head_sharps)
+               ]
+         z = ["service" ++ '=' : qp_service ci]
      params <- foldM get_val z kvs
      return $ concat (intersperse "&" params)
 
