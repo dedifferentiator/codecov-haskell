@@ -39,6 +39,7 @@ import           Network.Curl               (CurlCode (..),
 import           Control.Retry
 import Network.HTTP.Client
 import Data.Aeson
+import Network.HTTP.Client.TLS
 
 
 -- | Result to the POST request to codecov.io
@@ -80,10 +81,9 @@ postJson jsonCoverage url printResponse = do
 sendJson :: LBS.ByteString -- ^ json coverage report
          -> URLString     -- ^ target url
          -> Bool          -- ^ print response body if true
-         -> IO (Response LBS.ByteString)-- ^ POST request result
+         -> IO (Response LBS.ByteString) -- ^ POST request result
 sendJson jsonCoverage url printResponse = do
-  manager <- newManager defaultManagerSettings
-
+  manager <- newTlsManager
 
   initialRequest <- parseRequest url
   let request = initialRequest { method = "POST"

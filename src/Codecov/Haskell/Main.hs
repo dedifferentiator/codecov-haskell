@@ -17,7 +17,7 @@ import           Control.Concurrent         (threadDelay)
 import           Control.Monad              (unless, when)
 import           Data.Maybe                 hiding (listToMaybe)
 import           System.Environment         (getEnvironment)
-import           System.Exit                (exitFailure)
+-- import           System.Exit                (exitFailure)
 
 -- aeson
 import           Data.Aeson                 (encode)
@@ -42,7 +42,7 @@ import           Codecov.Haskell.CmdLine
 import           Codecov.Haskell.Query
 
 baseUrlApiV2 :: String
-baseUrlApiV2 = "http://codecov.io/upload/v2"
+baseUrlApiV2 = "https://codecov.io/upload/v2"
 
 getUrlApiV2 :: IO String
 getUrlApiV2 =
