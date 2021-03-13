@@ -12,6 +12,7 @@
 
 module Trace.Hpc.Codecov.Curl
    ( postJson
+   , sendJson
    , readCoverageResult
    , PostResult (..)
    ) where
@@ -21,7 +22,6 @@ import           Control.Monad
 import           Data.Maybe                 (fromJust, isNothing)
 
 -- aeson
-import           Data.Aeson                 (decode, (.:))
 import           Data.Aeson.Types           (parseMaybe)
 
 -- bytestring
@@ -37,6 +37,9 @@ import           Network.Curl               (CurlCode (..),
 
 -- retry
 import           Control.Retry
+import Network.HTTP.Client
+import Data.Aeson
+
 
 -- | Result to the POST request to codecov.io
 data PostResult =
@@ -59,16 +62,36 @@ postJson :: String        -- ^ json coverage report
          -> Bool          -- ^ print response body if true
          -> IO PostResult -- ^ POST request result
 postJson jsonCoverage url printResponse = do
-    h <- initialize
-    setopts h [CurlPost True
-              ,CurlVerbose True
-              ,CurlURL url
-              ,CurlHttpHeaders
-                 ["Content-Type: application/x-www-form-urlencoded"]
-              ,CurlPostFields [jsonCoverage]]
-    r <- perform_with_response_ h
-    when printResponse $ putStrLn $ respBody r
-    return $ parseResponse r
+  h <- initialize
+
+  setopts h [ CurlPost True
+            , CurlVerbose True
+            , CurlURL url
+            , CurlHttpHeaders
+                ["Content-Type: application/x-www-form-urlencoded"]
+            , CurlPostFields [jsonCoverage]
+            ]
+  r <- perform_with_response_ h
+  when printResponse $ putStrLn $ respBody r
+  return $ parseResponse r
+
+
+-- | Send json coverage report over HTTP using POST request
+sendJson :: LBS.ByteString -- ^ json coverage report
+         -> URLString     -- ^ target url
+         -> Bool          -- ^ print response body if true
+         -> IO (Response LBS.ByteString)-- ^ POST request result
+sendJson jsonCoverage url printResponse = do
+  manager <- newManager defaultManagerSettings
+
+
+  initialRequest <- parseRequest url
+  let request = initialRequest { method = "POST"
+                               , requestBody = RequestBodyLBS jsonCoverage }
+
+  res <- httpLbs request manager
+  when printResponse $ print res
+  return res
 
 -- | Exponential retry policy of 10 seconds initial delay, up to 5 times
 expRetryPolicy :: RetryPolicy

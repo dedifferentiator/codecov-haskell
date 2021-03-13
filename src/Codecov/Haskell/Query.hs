@@ -137,6 +137,8 @@ composeParam ci =
                ,("pr"       , qp_pr       , drop_head_sharps)
                ]
          z = ["service" ++ '=' : qp_service ci]
+
+     putStrLn =<< getEnv "CODECOV_TOKEN"
      params <- foldM get_val z kvs
      return $ concat (intersperse "&" params)
 

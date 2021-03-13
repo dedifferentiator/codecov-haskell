@@ -42,7 +42,7 @@ import           Codecov.Haskell.CmdLine
 import           Codecov.Haskell.Query
 
 baseUrlApiV2 :: String
-baseUrlApiV2 = "https://codecov.io/upload/v2"
+baseUrlApiV2 = "http://codecov.io/upload/v2"
 
 getUrlApiV2 :: IO String
 getUrlApiV2 =
@@ -114,12 +114,15 @@ defaultMain = do
                 apiUrl0 <- getUrlApiV2
                 let apiUrl1 = getUrlWithToken apiUrl0 "name" (mb_name cha)
                     fullUrl = getUrlWithToken apiUrl1 "token" (token cha)
-                response <- postJson (BSL.unpack $ encode codecovJson)
-                                     fullUrl (printResponse cha)
-                case response of
-                    PostSuccess _url _ ->
-                      -- XXX: Printing coverage response disabled.
-                      -- printCoverage cha url
-                      putStrLn "Successfully posted coverage report"
-                    PostFailure msg ->
-                      putStrLn ("Error: " ++ msg) >> exitFailure
+                -- response <- postJson (BSL.unpack $ encode codecovJson)
+                --                      fullUrl (printResponse cha)
+                resp <- sendJson (encode codecovJson)
+                          fullUrl (printResponse cha)
+                print resp
+                -- case response of
+                --     PostSuccess _url _ ->
+                --       -- XXX: Printing coverage response disabled.
+                --       -- printCoverage cha url
+                --       putStrLn "Successfully posted coverage report"
+                --     PostFailure msg ->
+                --       putStrLn ("Error: " ++ msg) >> exitFailure

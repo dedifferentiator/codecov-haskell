@@ -41,6 +41,7 @@ packages:
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - aeson-1.4.7.1@sha256:6d8d2fd959b7122a1df9389cf4eca30420a053d67289f92cdc0dbc0dab3530ba,7098
+- http-client-0.7.5@sha256:34318f01eb078c39358c47f921e9b5b0de5920d716a691baa0cc59673a8a2788,5350
 - th-abstraction-0.3.2.0@sha256:9b5b4e6e2bbff9b075ad7751ee98e2107090bd17b51d5442695b8990e4db6521,1851
 
 # Override default flag values for local packages and extra-deps
